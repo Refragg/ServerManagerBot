@@ -1,10 +1,9 @@
-using System.Runtime.CompilerServices;
 using System.Text;
-using System.Timers;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
 using DSharpPlus.Exceptions;
+using DSharpPlus.SlashCommands;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Timer = System.Timers.Timer;
@@ -18,11 +17,14 @@ public static class DiscordBot
     private static DiscordConfiguration _configuration;
 
     private static List<DiscordChannel> _logChannels = new ();
+    
+    private static SlashCommandsExtension _slashCommands;
 
     private static bool _logChannelsLoaded;
 
     public static event EventHandler<LogChannelLoadFailedEventArgs>? LogChannelLoadFailed;
     public static event EventHandler<DiscordMessageSendFailureEventArgs>? DiscordMessageSendFailure;
+    public static event EventHandler<CommandEventArgs>? CommandSent;
 
     private const int RetryCount = 5;
     private const int RetryDelay = 2000;
@@ -43,18 +45,18 @@ public static class DiscordBot
 
         _configuration = configuration;
         
+        _slashCommands = _client.UseSlashCommands(new SlashCommandsConfiguration());
+        _slashCommands.RegisterCommands<DiscordBotCommands.ServerManagerCommands>();
+        
         _client.GuildDownloadCompleted += ClientOnGuildDownloadCompleted;
         
-        _messageBufferTimer.Elapsed += MessageBufferTimerElapsed;
+        _messageBufferTimer.Elapsed += (_, _) => FlushMessageBuffer();
 
         await _client.ConnectAsync();
     }
 
-    private static async Task ClientOnGuildDownloadCompleted(DiscordClient sender, GuildDownloadCompletedEventArgs args)
-    {
-        Task.Run(LoadLogChannels);
-    }
-
+    public static void SendCommand(string command) => CommandSent?.Invoke(null, new CommandEventArgs(command));
+    
     public static void QueueLogMessage(Message message)
     {
         lock (_messageBuffer)
@@ -62,15 +64,25 @@ public static class DiscordBot
         
         _messageBufferTimer.Start();
     }
-    
-    private static void MessageBufferTimerElapsed(object? sender, ElapsedEventArgs e)
+
+    public static void Shutdown()
+    {
+        FlushMessageBuffer();
+        _client.Dispose();
+    }
+
+    private static async Task ClientOnGuildDownloadCompleted(DiscordClient sender, GuildDownloadCompletedEventArgs args)
+    {
+        Task.Run(LoadLogChannels);
+        
+    }
+
+    private static void FlushMessageBuffer()
     {
         _messageBufferTimer.Stop();
 
         while (!_logChannelsLoaded)
-        {
             Thread.Sleep(2000);
-        }
 
         List<DiscordMessageBuilder> messageBuilders = BuildDiscordMessages();
         

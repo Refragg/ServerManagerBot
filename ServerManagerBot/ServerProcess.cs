@@ -8,7 +8,7 @@ public class ServerProcess
     public enum Status
     {
         Ready,
-        Started,
+        Running,
         Ended,
     }
 
@@ -132,7 +132,7 @@ public class ServerProcess
 
     public SendInputResult SendInputToProcess(string input)
     {
-        if (ProcessStatus != Status.Started)
+        if (ProcessStatus != Status.Running)
             return SendInputResult.NotStarted;
         
         try
@@ -163,7 +163,7 @@ public class ServerProcess
         if (!Directory.Exists(_processWorkingDirectory))
             return StartResult.BadPath;
 
-        if (ProcessStatus == Status.Started)
+        if (ProcessStatus == Status.Running)
             return StartResult.AlreadyStarted;
         
         if (ProcessStatus == Status.Ended)
@@ -189,14 +189,14 @@ public class ServerProcess
             return StartResult.Error;
         }
 
-        ProcessStatus = Status.Started;
+        ProcessStatus = Status.Running;
         return StartResult.Ok;
     }
 
     private void PtyOutputReader()
     {
         var reader = new StreamReader(_ptyConnection.ReaderStream);
-        while (ProcessStatus == Status.Started)
+        while (ProcessStatus == Status.Running)
         {
             var line = reader.ReadLine();
             if (line is null)
@@ -208,7 +208,7 @@ public class ServerProcess
 
     public StopResult Stop()
     {
-        if (ProcessStatus != Status.Started)
+        if (ProcessStatus != Status.Running)
             return StopResult.NotStarted;
 
         try

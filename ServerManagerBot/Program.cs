@@ -5,7 +5,7 @@ namespace ServerManagerBot;
 
 internal static class Program
 {
-    public static ServerShell Shell;
+    private static ServerShell _shell;
 
     private static ServerProcess _process;
     
@@ -23,7 +23,8 @@ internal static class Program
         InitProcess(arguments.ProcessPath, arguments.WorkingDirectory, arguments.ProcessArguments);
         
         DiscordBot.LogChannelLoadFailed += DiscordBotOnLogChannelLoadFailed;
-        DiscordBot .DiscordMessageSendFailure += DiscordBotOnDiscordMessageSendFailure;
+        DiscordBot.DiscordMessageSendFailure += DiscordBotOnDiscordMessageSendFailure;
+        DiscordBot.CommandSent += OnCommandSent;
         DiscordBot.Initialize(discordConfiguration!);
         
         Task.Run(() =>
@@ -32,12 +33,12 @@ internal static class Program
             {
                 Message logMessage = GetStartResultLogMessage(_process.Start());
                 
-                Shell.AppendLine(logMessage.Text);
+                _shell.AppendLine(logMessage.Text);
                 DiscordBot.QueueLogMessage(logMessage);
             });
         });
         
-        Application.Run(Shell);
+        Application.Run(_shell);
         Application.Shutdown();
     }
 
@@ -45,7 +46,7 @@ internal static class Program
     {
         Application.MainLoop.Invoke(() =>
         {
-            Shell.AppendLine(GetErrorMessage($"Failure to send discord message: {e.Exception}").Text);
+            _shell.AppendLine(GetErrorMessage($"Failure to send discord message: {e.Exception}").Text);
         });
     }
 
@@ -61,9 +62,9 @@ internal static class Program
             };
             
             if (e.RetriesLeft > 0)
-                Shell.AppendLine(GetWarningMessage($"Couldn't get channel {e.LogChannelId} {errorCodeString}. Retrying {e.RetriesLeft} more times.").Text);
+                _shell.AppendLine(GetWarningMessage($"Couldn't get channel {e.LogChannelId} {errorCodeString}. Retrying {e.RetriesLeft} more times.").Text);
             else
-                Shell.AppendLine(GetErrorMessage($"Couldn't get channel {e.LogChannelId} {errorCodeString}. Retries were exhausted.").Text);
+                _shell.AppendLine(GetErrorMessage($"Couldn't get channel {e.LogChannelId} {errorCodeString}. Retries were exhausted.").Text);
         });
     }
 
@@ -89,9 +90,9 @@ internal static class Program
             return true;
         });
         
-        Shell = new ServerShell();
-        Shell.CommandSent += OnCommandSent;
-        Shell.SpecialCommandSent += OnSpecialCommandSent;
+        _shell = new ServerShell();
+        _shell.CommandSent += OnCommandSent;
+        _shell.SpecialCommandSent += OnSpecialCommandSent;
     }
     
     private static void InitProcess(string processPath, string workingDirectory, string[] arguments)
@@ -110,36 +111,34 @@ internal static class Program
         {
             Message logMessage = GetSendInputResultMessage(result);
             
-            Shell.AppendLine(logMessage.Text);
+            _shell.AppendLine(logMessage.Text);
             DiscordBot.QueueLogMessage(logMessage);
         }
     }
 
     private static void OnSpecialCommandSent(object? sender, CommandEventArgs e)
     {
-        Message logMessage;
-        
         if (e.Command == "start")
         {
-            logMessage = GetStartResultLogMessage(_process.Start());
-            
-            Shell.AppendLine(logMessage.Text);
-            DiscordBot.QueueLogMessage(logMessage);
+            Start();
             return;
         }
 
         if (e.Command == "stop")
         {
-            logMessage = GetStopResultLogMessage(_process.Stop());
-            
-            Shell.AppendLine(logMessage.Text);
-            DiscordBot.QueueLogMessage(logMessage);
+            Stop();
             return;
         }
 
-        logMessage = GetWarningMessage($"Unknown command '{e.Command}'");
+        if (e.Command == "quit")
+        {
+            Shutdown();
+            return;
+        }
 
-        Shell.AppendLine(logMessage.Text);
+        Message logMessage = GetWarningMessage($"Unknown command '{e.Command}'");
+
+        _shell.AppendLine(logMessage.Text);
         DiscordBot.QueueLogMessage(logMessage);
     }
 
@@ -149,7 +148,7 @@ internal static class Program
         
         Application.MainLoop.Invoke(() =>
         {
-            Shell.AppendLine(logMessage.Text);
+            _shell.AppendLine(logMessage.Text);
         });
         DiscordBot.QueueLogMessage(logMessage);
     }
@@ -160,7 +159,7 @@ internal static class Program
         
         Application.MainLoop.Invoke(() =>
         {
-            Shell.AppendLine(logMessage.Text);
+            _shell.AppendLine(logMessage.Text);
         });
         DiscordBot.QueueLogMessage(logMessage);
     }
@@ -171,9 +170,11 @@ internal static class Program
         
         Application.MainLoop.Invoke(() =>
         {
-            Shell.AppendLine(logMessage.Text);
+            _shell.AppendLine(logMessage.Text);
         });
         DiscordBot.QueueLogMessage(logMessage);
+        
+        Shutdown();
     }
 
     private static Message GetStartResultLogMessage(ServerProcess.StartResult result)
@@ -229,5 +230,35 @@ internal static class Program
         Console.ResetColor();
         
         Environment.Exit(exitCode);
+    }
+
+    public static void Start()
+    {
+        Message logMessage = GetStartResultLogMessage(_process.Start());
+            
+        _shell.AppendLine(logMessage.Text);
+        DiscordBot.QueueLogMessage(logMessage);
+    }
+
+    public static void Stop()
+    {
+        Message logMessage = GetStopResultLogMessage(_process.Stop());
+            
+        _shell.AppendLine(logMessage.Text);
+        DiscordBot.QueueLogMessage(logMessage);
+    }
+
+    public static void Shutdown()
+    {
+        Message shutdownMessage = GetLogMessage("Shutting down");
+        
+        if (_shell.Running)
+            _shell.AppendLine(shutdownMessage.Text);
+        
+        DiscordBot.QueueLogMessage(shutdownMessage);
+        DiscordBot.Shutdown();
+        
+        if (_shell.Running)
+            _shell.RequestStop();
     }
 }

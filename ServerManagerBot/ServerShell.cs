@@ -76,12 +76,6 @@ public partial class ServerShell
 
     private void HandleSpecialCommand(string specialCommand)
     {
-        if (specialCommand.StartsWith("quit"))
-        {
-            RequestStop();
-            return;
-        }
-
         if (specialCommand.StartsWith("pause"))
         {
             TogglePause();
