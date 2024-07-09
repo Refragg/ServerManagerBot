@@ -5,7 +5,9 @@ namespace ServerManagerBot;
 
 public class DiscordConfiguration
 {
-    public const string DiscordConfigurationFileName = "discord-conf.json";
+    private const string DiscordConfigurationDefaultFileName = "discord-conf.json";
+
+    public static readonly string DiscordConfigurationFileName = GetDiscordConfigurationFileName();
     
     public List<ulong> LogChannelsIds { get; set; }
     
@@ -36,5 +38,11 @@ public class DiscordConfiguration
         {
             return false;
         }
+    }
+    
+    private static string GetDiscordConfigurationFileName()
+    {
+        string? configFileName = Environment.GetEnvironmentVariable("ServerManagerBot_ConfPath");
+        return configFileName ?? DiscordConfigurationDefaultFileName;
     }
 }
