@@ -84,9 +84,13 @@ public static class DiscordBot
         while (!_logChannelsLoaded)
             Thread.Sleep(2000);
 
-        List<DiscordMessageBuilder> messageBuilders = BuildDiscordMessages();
+        List<DiscordMessageBuilder> messageBuilders;
         
-        _messageBuffer.Clear();
+        lock (_messageBuffer)
+        {
+            messageBuilders = BuildDiscordMessages(_messageBuffer);
+            _messageBuffer.Clear();
+        }
 
         foreach (DiscordChannel channel in _logChannels)
         {
@@ -104,7 +108,7 @@ public static class DiscordBot
         }
     }
 
-    private static List<DiscordMessageBuilder> BuildDiscordMessages()
+    private static List<DiscordMessageBuilder> BuildDiscordMessages(List<Message> messages)
     {
         void StartBuilder(StringBuilder sb) => sb.AppendLine("```ansi");
         
@@ -112,15 +116,15 @@ public static class DiscordBot
         
         List<DiscordMessageBuilder> builders = new List<DiscordMessageBuilder>();
 
-        List<Message> messages = new List<Message>(_messageBuffer);
+        List<Message> copiedMessages = new List<Message>(messages);
 
         StringBuilder currentBuilder = new StringBuilder();
         
         StartBuilder(currentBuilder);
         
-        for (var i = 0; i < messages.Count; i++)
+        for (var i = 0; i < copiedMessages.Count; i++)
         {
-            var message = messages[i];
+            var message = copiedMessages[i];
             string messageString = message.Level switch
             {
                 LogLevel.Trace => GetGreyText(message.Text),
