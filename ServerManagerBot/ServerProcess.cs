@@ -175,6 +175,9 @@ public class ServerProcess
             {
                 _ptyConnection = PtyProvider.SpawnAsync(_ptyOptions, CancellationToken.None).Result;
                 _ptyConnection.ProcessExited += OnPtyExited;
+                
+                // Wait a little bit before starting to read from the pty, there are cases where the pty takes some time to start and messes up the entire reading pipe
+                Thread.Sleep(1000);
                 Task.Run(PtyOutputReader);
             }
             else
