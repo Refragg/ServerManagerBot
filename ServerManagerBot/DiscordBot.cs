@@ -32,6 +32,8 @@ public static class DiscordBot
     private const int MessageBufferDelay = 10000;
     private static List<Message> _messageBuffer = new (128);
     private static Timer _messageBufferTimer = new(MessageBufferDelay);
+
+    private static bool _shouldLog = false;
     
     public static async void Initialize(DiscordConfiguration configuration)
     {
@@ -59,6 +61,12 @@ public static class DiscordBot
     
     public static void QueueLogMessage(Message message)
     {
+        if (!_shouldLog)
+        {
+            _shouldLog = message.Text.Contains(_configuration.LogStarter);
+            return;
+        }
+        
         lock (_messageBuffer)
             _messageBuffer.Add(message);
         

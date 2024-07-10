@@ -12,6 +12,8 @@ public class DiscordConfiguration
     public List<ulong> LogChannelsIds { get; set; }
     
     public string Token { get; set; }
+    
+    public string LogStarter { get; set; }
 
     public static DiscordConfiguration? Load()
     {
