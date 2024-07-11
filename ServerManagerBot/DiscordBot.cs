@@ -33,7 +33,7 @@ public static class DiscordBot
     private static List<Message> _messageBuffer = new (128);
     private static Timer _messageBufferTimer = new(MessageBufferDelay);
 
-    private static bool _shouldLog = false;
+    private static bool _logStarted = false;
     
     public static async void Initialize(DiscordConfiguration configuration)
     {
@@ -58,14 +58,26 @@ public static class DiscordBot
     }
 
     public static void SendCommand(string command) => CommandSent?.Invoke(null, new CommandEventArgs(command));
+
+    private static bool ShouldLog(Message message)
+    {
+        if (!_logStarted)
+        {
+            _logStarted = message.Text.Contains(_configuration.LogStarter);
+            return _logStarted;
+        }
+
+        foreach (string ignoredLog in _configuration.IgnoredLogs)
+            if (message.Text.Contains(ignoredLog))
+                return false;
+
+        return true;
+    }
     
     public static void QueueLogMessage(Message message)
     {
-        if (!_shouldLog)
-        {
-            _shouldLog = message.Text.Contains(_configuration.LogStarter);
+        if (!ShouldLog(message))
             return;
-        }
         
         lock (_messageBuffer)
             _messageBuffer.Add(message);

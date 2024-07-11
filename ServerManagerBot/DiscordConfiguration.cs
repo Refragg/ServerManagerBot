@@ -14,6 +14,8 @@ public class DiscordConfiguration
     public string Token { get; set; }
     
     public string LogStarter { get; set; }
+    
+    public List<string> IgnoredLogs { get; set; }
 
     public static DiscordConfiguration? Load()
     {
