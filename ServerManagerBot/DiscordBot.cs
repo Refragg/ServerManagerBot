@@ -156,6 +156,9 @@ public static class DiscordBot
                 LogLevel.None => message.Text
             };
 
+            // If the message is going to exceed Discord's 400 characters limit
+            // (we also gotta account for the StringBuilder start and end),
+            // we start a new StringBuilder
             if (currentBuilder.Length + messageString.Length >= 396)
             {
                 EndBuilder(currentBuilder);
@@ -164,6 +167,13 @@ public static class DiscordBot
                 currentBuilder = new StringBuilder();
                 StartBuilder(currentBuilder);
             }
+
+            // If the message by itself would exceed 400 characters
+            // (don't forget about the StringBuilder start and end again),
+            // we won't be able to fit it in a single message so, we truncate it
+            // TODO: Implement a better string splitting logic to avoid having to truncate the message
+            if (messageString.Length >= 389)
+                messageString = messageString[..370] + "\n... (TRUNCATED)";
 
             currentBuilder.AppendLine(messageString);
         }
