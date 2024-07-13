@@ -42,7 +42,7 @@ public class DiscordBotCommands
                 new DiscordInteractionResponseBuilder()
                     .WithContent("Sending the input to the process..."));
             
-            Task.Run(() => DiscordBot.SendCommand(command));
+            Task.Run(async () => await DiscordBot.SendCommand(command));
         }
     }
 }

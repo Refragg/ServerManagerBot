@@ -29,7 +29,7 @@ public static class DiscordBot
     private const int RetryCount = 5;
     private const int RetryDelay = 2000;
 
-    private const int MessageBufferDelay = 10000;
+    private const int MessageBufferDelay = 7000;
     private static List<Message> _messageBuffer = new (128);
     private static Timer _messageBufferTimer = new(MessageBufferDelay);
 
@@ -57,7 +57,12 @@ public static class DiscordBot
         await _client.ConnectAsync();
     }
 
-    public static void SendCommand(string command) => CommandSent?.Invoke(null, new CommandEventArgs(command));
+    public static async Task SendCommand(string command)
+    {
+        CommandSent?.Invoke(null, new CommandEventArgs(command));
+        await Task.Delay(1000);
+        FlushMessageBuffer();
+    }
 
     private static bool ShouldLog(Message message)
     {
