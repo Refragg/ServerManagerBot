@@ -33,6 +33,7 @@ internal static class Program
         DiscordBot.Initialize(discordConfiguration!);
         
         StartHttpManagementListener();
+        InitializeCustomCommands();
         
         Task.Run(() =>
         {
@@ -49,6 +50,27 @@ internal static class Program
         Application.Shutdown();
     }
 
+    private static void InitializeCustomCommands()
+    {
+        CustomCommandsConfiguration? customCommandsConfiguration = CustomCommandsConfiguration.Load();
+        if (customCommandsConfiguration is not null)
+        {
+            try
+            {
+                CustomCommands.Initialize(customCommandsConfiguration);
+                return;
+            }
+            catch { } // Commands failed to initialize, fallthrough the warning log
+        }
+        
+        Message noCustomCommandsMessage =
+            GetWarningMessage("Custom commands failed to load, the custom commands will not be available");
+
+        _shell.AppendLine(noCustomCommandsMessage.Text);
+        DiscordBot.QueueLogMessage(noCustomCommandsMessage);
+        CustomCommands.Initialize(default);
+    }
+    
     private static void StartHttpManagementListener()
     {
         string? managementPortRaw = Environment.GetEnvironmentVariable("ServerManagerBot_ManagementPort");
@@ -209,6 +231,10 @@ internal static class Program
 
     private static void OnOutputDataSent(object? sender, DataEventArgs e)
     {
+        string? response = CustomCommands.ProcessCommands(e.Text);
+        if (response is not null)
+            OnCommandSent(null, new CommandEventArgs(response));
+        
         Message logMessage = GetLogMessage(e.Text);
         
         Application.MainLoop.Invoke(() =>
