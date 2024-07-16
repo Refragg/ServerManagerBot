@@ -1,4 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
+using System.Net;
+using System.Text;
 using Terminal.Gui;
 
 namespace ServerManagerBot;
@@ -8,6 +10,9 @@ internal static class Program
     private static ServerShell _shell;
 
     private static ServerProcess _process;
+
+    private static Task? _httpManagementListenerTask;
+    private static CancellationTokenSource _httpManagementListenerTaskCanceller = new ();
     
     private static void Main(string[] args)
     {
@@ -27,6 +32,8 @@ internal static class Program
         DiscordBot.CommandSent += OnCommandSent;
         DiscordBot.Initialize(discordConfiguration!);
         
+        StartHttpManagementListener();
+        
         Task.Run(() =>
         {
             Application.MainLoop.Invoke(() =>
@@ -40,6 +47,53 @@ internal static class Program
         
         Application.Run(_shell);
         Application.Shutdown();
+    }
+
+    private static void StartHttpManagementListener()
+    {
+        string? managementPortRaw = Environment.GetEnvironmentVariable("ServerManagerBot_ManagementPort");
+
+        if (!int.TryParse(managementPortRaw, out int managementPort))
+        {
+            Message noHttpMessage = GetWarningMessage(
+                    "Couldn't parse the HTTP port for the management listener, the management interface will not be available");
+            
+            _shell.AppendLine(noHttpMessage.Text);
+            DiscordBot.QueueLogMessage(noHttpMessage);
+            return;
+        }
+
+        _httpManagementListenerTask = new Task(() => HttpManagementListenerLoop(managementPort, _httpManagementListenerTaskCanceller.Token), _httpManagementListenerTaskCanceller.Token);
+        _httpManagementListenerTask.Start();
+    }
+
+    private static async Task HttpManagementListenerLoop(int port, CancellationToken token)
+    {
+        HttpListener httpListener = new HttpListener();
+        
+        httpListener.Prefixes.Add($"http://localhost:{port}/send/");
+        httpListener.Start();
+
+        while (!token.IsCancellationRequested)
+        {
+            HttpListenerContext context = await httpListener.GetContextAsync().WaitAsync(token);
+            
+            if (context.Request.HttpMethod != "POST")
+            {
+                context.Response.StatusCode = 405;
+                context.Response.Close();
+                continue;
+            }
+            
+            using (MemoryStream bodyStream = new MemoryStream())
+            {
+                context.Request.InputStream.CopyTo(bodyStream);
+                OnCommandSent(null, new CommandEventArgs(Encoding.UTF8.GetString(bodyStream.ToArray())));
+            }
+            
+            context.Response.StatusCode = 200;
+            context.Response.Close();
+        }
     }
 
     private static void DiscordBotOnDiscordMessageSendFailure(object? sender, DiscordMessageSendFailureEventArgs e)
@@ -251,6 +305,10 @@ internal static class Program
     public static void Shutdown()
     {
         Message shutdownMessage = GetLogMessage("Shutting down");
+
+        _httpManagementListenerTaskCanceller.Cancel();
+        if (_httpManagementListenerTask is not null)
+            _httpManagementListenerTask.Wait();
         
         if (_shell.Running)
             _shell.AppendLine(shutdownMessage.Text);
