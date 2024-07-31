@@ -33,6 +33,8 @@ public static class DiscordBot
     private static List<Message> _messageBuffer = new (128);
     private static Timer _messageBufferTimer = new(MessageBufferDelay);
 
+    private static readonly List<DiscordMessageBuilder> EmptyMessageBuilderList = new();
+
     private static bool _logStarted = false;
     
     public static async void Initialize(DiscordConfiguration configuration)
@@ -143,6 +145,9 @@ public static class DiscordBot
 
         List<Message> copiedMessages = new List<Message>(messages);
 
+        if (copiedMessages.Count == 0)
+            return EmptyMessageBuilderList;
+
         StringBuilder currentBuilder = new StringBuilder();
         
         StartBuilder(currentBuilder);
@@ -166,11 +171,16 @@ public static class DiscordBot
             // we start a new StringBuilder
             if (currentBuilder.Length + messageString.Length >= 396)
             {
-                EndBuilder(currentBuilder);
-                builders.Add(new DiscordMessageBuilder().WithContent(currentBuilder.ToString()));
-                
-                currentBuilder = new StringBuilder();
-                StartBuilder(currentBuilder);
+                // We only want to end builders that actually contain something in them
+                // So, we check if the builder only contains the start line
+                if (currentBuilder.ToString() != "```ansi\n")
+                {
+                    EndBuilder(currentBuilder);
+                    builders.Add(new DiscordMessageBuilder().WithContent(currentBuilder.ToString()));
+                    
+                    currentBuilder = new StringBuilder();
+                    StartBuilder(currentBuilder);
+                }
             }
 
             // If the message by itself would exceed 400 characters
